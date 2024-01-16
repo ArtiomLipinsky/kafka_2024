@@ -1,0 +1,83 @@
+version: '2'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+  kafka1:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka1
+    ports:
+      - "8097:8097"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CONFLUENT_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8097,INTERNAL://kafka1:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+  kafka2:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka2
+    ports:
+      - "8098:8098"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CONFLUENT_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8098,INTERNAL://kafka2:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+  kafka3:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka3
+    ports:
+      - "8099:8099"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CONFLUENT_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8099,INTERNAL://kafka3:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+  init-kafka-container:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - kafka1
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # rather than giving sleep 15 use this 
+      # to block init container to wait for Kafka broker to be ready  
+      kafka-topics --bootstrap-server kafka1:9092 --list
+
+      # create init topics
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic L1T1-input
+      kafka-topics --create --bootstrap-server kafka1:9092 --partitions 1 --topic L1T1-output
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic L1T2-input
+      kafka-topics --create --bootstrap-server kafka1:9092 --partitions 1 --topic L1T2-output
+      "
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8082:8080
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local_0
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka1:9092
+      - KAFKA_CLUSTERS_1_NAME=local_1
+      - KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS=kafka2:9092
+      - KAFKA_CLUSTERS_2_NAME=local_2
+      - KAFKA_CLUSTERS_2_BOOTSTRAPSERVERS=kafka3:9092
