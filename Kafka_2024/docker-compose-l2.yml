@@ -1,0 +1,75 @@
+version: '2'
+services:
+  zookeeper1:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+    networks:
+      - app-network
+
+  zookeeper2:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 32181:2181
+    networks:
+      - app-network
+  kafka1:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka1
+    ports:
+      - "8097:8097"
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper1:2181,zookeeper2:2181
+      KAFKA_CONFLUENT_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8097,INTERNAL://kafka1:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    networks:
+      - app-network
+
+  init-kafka-container:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - kafka1
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # rather than giving sleep 15 use this 
+      # to block init container to wait for Kafka broker to be ready  
+      kafka-topics --bootstrap-server kafka1:9092 --list
+
+      # create init topics
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic task1-1
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic task1-2
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic task2
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic task3-1
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic task3-2
+      kafka-topics --create --partitions 3 --bootstrap-server kafka1:9092 --topic task4
+      "
+    networks:
+      - app-network
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8082:8080
+    environment:
+      - DYNAMIC_CONFIG_ENABLED=true
+      - KAFKA_CLUSTERS_0_NAME=local_0
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka1:9092
+    networks:
+      - app-network
+networks:
+  app-network:
+    driver: bridge
